@@ -44,7 +44,10 @@ class camera {
 
         for (int j = 0; j < image_height; j++) {
             std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
+            std::clog << "\Rendering progress: " << (j / image_height * 100) << "%" << ' ' << std::flush;
             for (int i = 0; i < image_width; i++) {
+                std::clog << "\rScanitems remaining: " << (image_width - i) << ' ' << std::flush;
+                std::clog << "\Rendering progress: " << (static_cast<double>(j) / image_height * 100 + static_cast<double>(i) / image_width / image_height * 100) << "%" << ' ' << std::flush;
 //                auto pixel_center = pixel00_loc + (i * pixel_delta_u) + (j * pixel_delta_v);
 //                auto ray_direction = pixel_center - center;
 //                ray r(center, ray_direction);
@@ -73,7 +76,7 @@ class camera {
             }
         }
         
-        stbi_write_jpg("/Users/mquispe/Documents/IAP 2025/cpp-projects/rAItracing/rAItracing/metal_image.jpg", image_width, image_height, 3, data, 100);
+        stbi_write_jpg("/Users/mquispe/Documents/IAP 2025/cpp-projects/rAItracing/rAItracing/rendered_image.jpg", image_width, image_height, 3, data, 100);
         std::clog << "\rDone.                 \n";
     }
 
@@ -136,8 +139,9 @@ class camera {
 
         auto ray_origin = (defocus_angle <= 0) ? center : defocus_disk_sample();
         auto ray_direction = pixel_sample - ray_origin;
+        auto ray_time = random_double();
 
-        return ray(ray_origin, ray_direction);
+        return ray(ray_origin, ray_direction, ray_time);
     }
 
     vec3 sample_square() const {
