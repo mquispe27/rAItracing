@@ -11,12 +11,18 @@
 
 #include "bvh.h"
 #include "camera.h"
+#include "crow_all.h"
 #include "hittable.h"
 #include "hittable_list.h"
 #include "material.h"
 #include "quad.h"
 #include "sphere.h"
 #include "texture.h"
+
+
+std::atomic<int> rendering_progress(0);
+std::vector<unsigned char> rendered_image;
+std::mutex image_mutex;
 
 void bouncing_spheres() {
     hittable_list world;
@@ -84,7 +90,9 @@ void bouncing_spheres() {
     cam.defocus_angle = 0.6;
     cam.focus_dist    = 10.0;
 
-    cam.render(world);
+    cam.render(world, [](int progress) {
+        rendering_progress.store(progress);
+    });
 
 }
 
@@ -111,7 +119,9 @@ void checkered_spheres() {
 
     cam.defocus_angle = 0;
 
-    cam.render(world);
+    cam.render(world, [](int progress) {
+        rendering_progress.store(progress);
+    });
 }
 
 void earth() {
@@ -134,7 +144,18 @@ void earth() {
 
     cam.defocus_angle = 0;
 
-    cam.render(hittable_list(globe));
+    cam.render(hittable_list(globe), [](int progress) {
+        rendering_progress.store(progress);
+    });
+    
+    // Store the rendered image
+    std::lock_guard<std::mutex> lock(image_mutex);
+    rendered_image = cam.image_buffer;
+
+    
+
+
+
 }
 
 void perlin_spheres() {
@@ -159,7 +180,13 @@ void perlin_spheres() {
 
     cam.defocus_angle = 0;
 
-    cam.render(world);
+    cam.render(world, [](int progress) {
+        rendering_progress.store(progress);
+    });
+    
+    // Store the rendered image
+    std::lock_guard<std::mutex> lock(image_mutex);
+    rendered_image = cam.image_buffer;
 }
 
 void quads() {
@@ -194,7 +221,13 @@ void quads() {
 
     cam.defocus_angle = 0;
 
-    cam.render(world);
+    cam.render(world, [](int progress) {
+        rendering_progress.store(progress);
+    });
+    
+    // Store the rendered image
+    std::lock_guard<std::mutex> lock(image_mutex);
+    rendered_image = cam.image_buffer;
 }
 
 void simple_light() {
@@ -223,7 +256,13 @@ void simple_light() {
 
     cam.defocus_angle = 0;
 
-    cam.render(world);
+    cam.render(world, [](int progress) {
+        rendering_progress.store(progress);
+    });
+    
+    // Store the rendered image
+    std::lock_guard<std::mutex> lock(image_mutex);
+    rendered_image = cam.image_buffer;
 }
 
 void cornell_box() {
@@ -256,18 +295,125 @@ void cornell_box() {
 
     cam.defocus_angle = 0;
 
-    cam.render(world);
+    cam.render(world, [](int progress) {
+        rendering_progress.store(progress);
+    });
+    
+    // Store the rendered image
+    std::lock_guard<std::mutex> lock(image_mutex);
+    rendered_image = cam.image_buffer;
+}
+
+
+
+
+void render_scene(const std::string& option) {
+    if (option == "bouncing_spheres") {
+        bouncing_spheres();
+    } else if (option == "checkered_spheres") {
+        checkered_spheres();
+    } else if (option == "earth") {
+        earth();
+    } else if (option == "perlin_spheres") {
+        perlin_spheres();
+    } else if (option == "quads") {
+        quads();
+    } else if (option == "simple_light") {
+        simple_light();
+    } else if (option == "cornell_box") {
+        cornell_box();
+    } else {
+        throw std::invalid_argument("Invalid drawing option");
+    }
+
+    std::cout << rendered_image.size() << std::endl;
+
+
 }
 
 int main() {
-    switch (7) {
-        case 1:  bouncing_spheres();   break;
-        case 2:  checkered_spheres();  break;
-        case 3:  earth();              break;
-        case 4:  perlin_spheres();     break;
-        case 5:  quads();              break;
-        case 6:  simple_light();       break;
-        case 7:  cornell_box();        break;
-    }
-    return 0;
+    crow::SimpleApp app;
+
+    CROW_ROUTE(app, "/")([](){
+        return R"(
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Ray Tracing Options</title>
+                <script>
+                    function renderScene() {
+                        const selectedOption = document.getElementById("drawingOptions").value;
+                        fetch("/render", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({ prompt: selectedOption })
+                        })
+                        .then(response => {
+                            if (response.ok) {
+                                const interval = setInterval(() => {
+                                    fetch("/progress")
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        document.getElementById("progressBar").value = data.progress;
+                                        if (data.progress >= 100) {
+                                            clearInterval(interval);
+                                            document.getElementById("renderedImage").src = "/image";
+                                        }
+                                    });
+                                }, 1000);
+                            } else {
+                                alert("Error initiating rendering");
+                            }
+                        });
+                    }
+                </script>
+            </head>
+            <body>
+                <h1>Select a Drawing Option</h1>
+                <select id="drawingOptions">
+                    <option value="bouncing_spheres">Bouncing Spheres</option>
+                    <option value="checkered_spheres">Checkered Spheres</option>
+                    <option value="earth">Earth</option>
+                    <option value="perlin_spheres">Perlin Spheres</option>
+                    <option value="quads">Quads</option>
+                    <option value="simple_light">Simple Light</option>
+                    <option value="cornell_box">Cornell Box</option>
+                </select>
+                <button onclick=renderScene()>Render</button>
+                <progress id="progressBar" value="0" max="100"></progress>
+                <img id="renderedImage" src="" alt="Rendered Image" />
+            </body>
+            </html>
+        )";
+    });
+
+    CROW_ROUTE(app, "/progress").methods("GET"_method)
+    ([](){
+        return crow::json::wvalue{{"progress", rendering_progress.load()}};
+    });
+
+    CROW_ROUTE(app, "/image").methods("GET"_method)
+    ([](){
+        std::lock_guard<std::mutex> lock(image_mutex);
+        crow::response res;
+        res.set_header("Content-Type", "image/png");
+        res.body = std::string(reinterpret_cast<const char*>(rendered_image.data()), rendered_image.size());
+        return res;
+    });
+
+
+    CROW_ROUTE(app, "/render").methods("POST"_method)
+    ([](const crow::request& req){
+        auto x = crow::json::load(req.body);
+        if (!x) return crow::response(400);
+
+        std::string prompt = x["prompt"].s();
+        std::thread(render_scene, prompt).detach();
+
+        return crow::response(200, "Rendering initiated");
+    });
+
+    app.port(8080).multithreaded().run();
 }

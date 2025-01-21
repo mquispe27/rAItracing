@@ -41,10 +41,18 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		642419F82D3F315F004A1CAB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		6424A6302D3C4C52004A1CAB = {
 			isa = PBXGroup;
 			children = (
 				6424A63B2D3C4C52004A1CAB /* rAItracing */,
+				642419F82D3F315F004A1CAB /* Frameworks */,
 				6424A63A2D3C4C52004A1CAB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -93,6 +101,7 @@
 				TargetAttributes = {
 					6424A6382D3C4C52004A1CAB = {
 						CreatedOnToolsVersion = 16.2;
+						LastSwiftMigration = 1620;
 					};
 				};
 			};
@@ -244,16 +253,23 @@
 		6424A6412D3C4C52004A1CAB /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
+				"HEADER_SEARCH_PATHS[arch=*]" = /opt/homebrew/Cellar/asio/1.30.2/include;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
 		6424A6422D3C4C52004A1CAB /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
+				"HEADER_SEARCH_PATHS[arch=*]" = /opt/homebrew/Cellar/asio/1.30.2/include;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};

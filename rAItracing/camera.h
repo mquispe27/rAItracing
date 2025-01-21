@@ -36,24 +36,24 @@ class camera {
     double focus_dist = 10;    // Distance from camera lookfrom point to plane of perfect focus
 
 
-    void render(const hittable& world) {
+    std::vector<unsigned char> image_buffer;
+
+    void render(const hittable& world, std::function<void(int)> update_progress) {
         initialize();
+
 
         std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
         
-        struct RGB data[image_height][image_width];
+        // struct RGB data[image_height][image_width];
+        image_buffer.resize(image_width * image_height * 3);
 
         for (int j = 0; j < image_height; j++) {
             std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
-            std::clog << "\Rendering progress: " << (j / image_height * 100) << "%" << ' ' << std::flush;
+            std::clog << "\rRendering progress: " << (j / image_height * 100) << "%" << ' ' << std::flush;
             for (int i = 0; i < image_width; i++) {
                 std::clog << "\rScanitems remaining: " << (image_width - i) << ' ' << std::flush;
-                std::clog << "\Rendering progress: " << (static_cast<double>(j) / image_height * 100 + static_cast<double>(i) / image_width / image_height * 100) << "%" << ' ' << std::flush;
-//                auto pixel_center = pixel00_loc + (i * pixel_delta_u) + (j * pixel_delta_v);
-//                auto ray_direction = pixel_center - center;
-//                ray r(center, ray_direction);
-//
-//                color pixel_color = ray_color(r, world);
+                auto rendering_progress = static_cast<double>(j) / image_height * 100 + static_cast<double>(i) / image_width / image_height * 100;
+                std::clog << "\rRendering progress: " << rendering_progress << "%" << ' ' << std::flush;
                 
                 color pixel_color(0,0,0);
                 for (int sample = 0; sample < samples_per_pixel; sample++) {
@@ -68,16 +68,27 @@ class camera {
                 auto b = linear_to_gamma(pixel_samples_scale*pixel_color.z());
                 
                 static const interval intensity(0.000, 0.999);
-                data[j][i].R = static_cast<unsigned char>(256 * intensity.clamp(r));
-                data[j][i].G = static_cast<unsigned char>(256 * intensity.clamp(g));
-                data[j][i].B = static_cast<unsigned char>(256 * intensity.clamp(b));
+                // data[j][i].R = static_cast<unsigned char>(256 * intensity.clamp(r));
+                // data[j][i].G = static_cast<unsigned char>(256 * intensity.clamp(g));
+                // data[j][i].B = static_cast<unsigned char>(256 * intensity.clamp(b));
+                image_buffer[3 * (j * image_width + i) + 0] = static_cast<unsigned char>(256 * intensity.clamp(r));
+                image_buffer[3 * (j * image_width + i) + 1] = static_cast<unsigned char>(256 * intensity.clamp(g));
+                image_buffer[3 * (j * image_width + i) + 2] = static_cast<unsigned char>(256 * intensity.clamp(b));
+
+                update_progress(rendering_progress);
     
-    
-                write_color(std::cout, pixel_color);
+                // write_color(std::cout, pixel_color);
             }
         }
-        
-        stbi_write_jpg("/Users/mquispe/Documents/IAP 2025/cpp-projects/rAItracing/rAItracing/light_image.jpg", image_width, image_height, 3, data, 100);
+
+        std::vector<unsigned char> png_buffer;
+        int png_size = 0;
+        unsigned char* png_data = stbi_write_png_to_mem(image_buffer.data(), image_width * 3, image_width, image_height, 3, &png_size);
+        if (png_data) {
+            image_buffer.assign(png_data, png_data + png_size);
+            free(png_data);
+        }
+
         std::clog << "\rDone.                 \n";
     }
 
