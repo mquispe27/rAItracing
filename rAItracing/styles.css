@@ -1,0 +1,151 @@
+@import url("https://fonts.googleapis.com/css2?family=Caprasimo&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Averia+Serif+Libre&display=swap");
+
+:root {
+  --red: rgb(208, 67, 12);
+  --beige: #d4c8a9;
+  --light-beige: #f1e6c9;
+  --light-bg: rgba(255, 255, 255, 28%);
+  --lighter-green: #d4d6b0;
+  --green: #b0b470;
+  --dark-green: #58823a;
+  --darker-green: #43603b;
+  --orange: #d13717;
+  --orange-dark: #b02e0c;
+  --base-bg: #f1f3f5;
+  --light-grey: #b0a892;
+  --medium-grey: #b1a892;
+  --dark-grey: #264528;
+  --pink: #ab5c53;
+  --light-pink: #b28883;
+  --salmon: #f7bfa8;
+  --brown: #6f5436;
+  --dark-brown: #6f5436;
+  --selected-brown: #93876b;
+  --sidebar-brown: #b8a886;
+  --background-brown: #cfbe98;
+  --my-green: #b7bc71;
+}
+
+button.btn-small {
+  font-size: 80%;
+}
+
+button.button-error {
+  color: white;
+  background: var(--red);
+}
+
+a.button {
+  color: #212529;
+  background-color: #f1f3f5;
+  border: 1px solid #dee2e6;
+  border-radius: 0.25em;
+  padding: 0.375em 0.75em;
+  text-decoration: none;
+}
+
+button {
+  font-size: 1em;
+  padding: 0.5em 1em;
+  border-radius: 0.25em;
+  border: 1px solid #dee2e6;
+  background: var(--pink);
+  color: white;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+button:hover {
+  transform: scale(1.05);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1em;
+}
+
+body {
+  background-color: var(--beige);
+  color: var(--text);
+}
+
+h1 {
+  font-family: "Caprasimo";
+}
+
+* {
+  font-family: "Averia Serif Libre", serif;
+}
+
+.toast {
+  position: fixed;
+  top: 1em;
+  left: 50%;
+  transform: translate(-50%, 0);
+  padding: 0.5em 1em;
+  border-radius: 6px;
+  max-width: 60em;
+  margin: 0 auto;
+  z-index: 9999;
+  color: #fff;
+}
+
+.error {
+  background-color: #fa5252;
+}
+.success {
+  background-color: #40c057;
+}
+
+
+h1 {
+  font-size: clamp(2rem, 5vw, 4rem);
+}
+
+:root {
+  --bg-color: #ffffff;
+  --text-color: #333333;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: #333333;
+    --text-color: #ffffff;
+  }
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.button {
+  transition: transform 0.2s ease;
+}
+
+.button:hover {
+  transform: translateY(-2px);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 5px;
+}

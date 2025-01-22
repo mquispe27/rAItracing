@@ -12,13 +12,6 @@
 #include "hittable.h"
 #include "material.h"
 
-struct RGB{
-    unsigned char R;
-    unsigned char G;
-    unsigned char B;
-};
-
-
 class camera {
   public:
     double aspect_ratio = 1.0;  // Ratio of image width over height
@@ -41,10 +34,8 @@ class camera {
     void render(const hittable& world, std::function<void(int)> update_progress) {
         initialize();
 
-
         std::cout << "P3\n" << image_width << ' ' << image_height << "\n255\n";
         
-        // struct RGB data[image_height][image_width];
         image_buffer.resize(image_width * image_height * 3);
 
         for (int j = 0; j < image_height; j++) {
@@ -68,26 +59,18 @@ class camera {
                 auto b = linear_to_gamma(pixel_samples_scale*pixel_color.z());
                 
                 static const interval intensity(0.000, 0.999);
-                // data[j][i].R = static_cast<unsigned char>(256 * intensity.clamp(r));
-                // data[j][i].G = static_cast<unsigned char>(256 * intensity.clamp(g));
-                // data[j][i].B = static_cast<unsigned char>(256 * intensity.clamp(b));
                 image_buffer[3 * (j * image_width + i) + 0] = static_cast<unsigned char>(256 * intensity.clamp(r));
                 image_buffer[3 * (j * image_width + i) + 1] = static_cast<unsigned char>(256 * intensity.clamp(g));
                 image_buffer[3 * (j * image_width + i) + 2] = static_cast<unsigned char>(256 * intensity.clamp(b));
 
+                
                 update_progress(rendering_progress);
-    
                 // write_color(std::cout, pixel_color);
             }
+            
         }
-
-        std::vector<unsigned char> png_buffer;
-        int png_size = 0;
-        unsigned char* png_data = stbi_write_png_to_mem(image_buffer.data(), image_width * 3, image_width, image_height, 3, &png_size);
-        if (png_data) {
-            image_buffer.assign(png_data, png_data + png_size);
-            free(png_data);
-        }
+        
+        stbi_write_jpg("user_image.jpg", image_width, image_height, 3, image_buffer.data(), 100);
 
         std::clog << "\rDone.                 \n";
     }
