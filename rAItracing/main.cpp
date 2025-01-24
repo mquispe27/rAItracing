@@ -19,6 +19,49 @@
 #include "sphere.h"
 #include "texture.h"
 
+// Struct that holds all custom settings
+struct CustomSettings {
+    std::string prompt;
+    std::optional<double> aspectRatio;
+    std::optional<int> imageWidth;
+    std::optional<int> samplesPerPixel;
+    std::optional<int> maxDepth;
+    std::optional<std::array<double, 3>> backgroundColor;
+    std::optional<double> vfov;
+    std::optional<std::array<double, 3>> lookfrom;
+    std::optional<std::array<double, 3>> lookat;
+    std::optional<std::array<double, 3>> vup;
+    std::optional<double> defocusAngle;
+    std::optional<double> focusDist;
+    std::optional<int> numSpheres;
+    std::optional<int> numQuads;
+};
+
+struct RGB {
+    int r, g, b;
+};
+
+RGB hexToRGB(std::string hexColor) {
+    // Remove '#' if present
+    hexColor.erase(std::remove(hexColor.begin(), hexColor.end(), '#'), hexColor.end());
+
+    if (hexColor.length() != 6) {
+        return {0, 0, 0}; // Invalid input, return black
+    }
+
+    RGB result;
+    std::stringstream ss;
+    ss << std::hex << hexColor;
+    int hexValue;
+    ss >> hexValue;
+
+    result.r = (hexValue >> 16) & 0xFF;
+    result.g = (hexValue >> 8) & 0xFF;
+    result.b = hexValue & 0xFF;
+
+    return result;
+}
+
 
 std::atomic<int> rendering_progress(0);
 std::vector<unsigned char> rendered_image;
@@ -151,10 +194,6 @@ void earth() {
     // Store the rendered image
     std::lock_guard<std::mutex> lock(image_mutex);
     rendered_image = cam.image_buffer;
-
-    
-
-
 
 }
 
@@ -304,32 +343,78 @@ void cornell_box() {
     rendered_image = cam.image_buffer;
 }
 
+void custom_scene(const CustomSettings& settings) {
+    hittable_list world;
 
+    auto numSpheres = settings.numSpheres.value_or(0);
+    auto numQuads = settings.numQuads.value_or(0);
 
+    for (int i = 0; i < numSpheres; ++i) {
+        auto radius = random_double(0.1, 5.0);
+        auto x = random_double(-5.0, 5.0);
+        auto y = random_double(-5.0, 5.0);
+        auto z = random_double(-5.0, 5.0);
+        auto color_ = color(random_double(), random_double(), random_double());
+        world.add(make_shared<sphere>(point3(x, y, z), radius, make_shared<lambertian>(color_)));
+    }
 
-void render_scene(const std::string& option) {
-    if (option == "bouncing_spheres") {
+    for (int i = 0; i < numQuads; ++i) {
+        auto x1 = random_double(-5.0, 5.0);
+        auto y1 = random_double(-5.0, 5.0);
+        auto z1 = random_double(-5.0, 5.0);
+        auto x2 = random_double(-5.0, 5.0);
+        auto y2 = random_double(-5.0, 5.0);
+        auto z2 = random_double(-5.0, 5.0);
+        auto x3 = random_double(-5.0, 5.0);
+        auto y3 = random_double(-5.0, 5.0);
+        auto z3 = random_double(-5.0, 5.0);
+        auto color_ = color(random_double(), random_double(), random_double());
+        world.add(make_shared<quad>(point3(x1, y1, z1), vec3(x2 - x1, y2 - y1, z2 - z1), vec3(x3 - x1, y3 - y1, z3 - z1), make_shared<lambertian>(color_)));
+    }
+
+    camera cam;
+
+    cam.aspect_ratio = settings.aspectRatio.value_or(1.0);
+    cam.image_width = settings.imageWidth.value_or(400);
+    cam.samples_per_pixel = settings.samplesPerPixel.value_or(10);
+    cam.max_depth = settings.maxDepth.value_or(10);
+    cam.background = settings.backgroundColor.has_value() ? color(static_cast<double>(settings.backgroundColor.value()[0])/ 255 , static_cast<double>(settings.backgroundColor.value()[1]) / 255 , static_cast<double>(settings.backgroundColor.value()[2]) / 255) : color(0, 0, 0);
+    cam.vfov = settings.vfov.value_or(20);
+    cam.lookfrom = settings.lookfrom.has_value() ? point3(settings.lookfrom.value()[0], settings.lookfrom.value()[1], settings.lookfrom.value()[2]) : point3(0, 0, 0);
+    cam.lookat = settings.lookat.has_value() ? point3(settings.lookat.value()[0], settings.lookat.value()[1], settings.lookat.value()[2]) : point3(0, 0, 0);
+    cam.vup = settings.vup.has_value() ? vec3(settings.vup.value()[0], settings.vup.value()[1], settings.vup.value()[2]) : vec3(0, 1, 0);
+
+    cam.defocus_angle = settings.defocusAngle.value_or(0);
+    cam.focus_dist = settings.focusDist.value_or(10);
+
+    cam.render(world, [](int progress) {
+        rendering_progress.store(progress);
+    });
+    
+}
+
+void render_scene(const CustomSettings& settings) {
+    if (settings.prompt == "bouncing_spheres") {
         bouncing_spheres();
-    } else if (option == "checkered_spheres") {
+    } else if (settings.prompt == "checkered_spheres") {
         checkered_spheres();
-    } else if (option == "earth") {
+    } else if (settings.prompt == "earth") {
         earth();
-    } else if (option == "perlin_spheres") {
+    } else if (settings.prompt == "perlin_spheres") {
         perlin_spheres();
-    } else if (option == "quads") {
+    } else if (settings.prompt == "quads") {
         quads();
-    } else if (option == "simple_light") {
+    } else if (settings.prompt == "simple_light") {
         simple_light();
-    } else if (option == "cornell_box") {
+    } else if (settings.prompt == "cornell_box") {
         cornell_box();
+    } else if (settings.prompt == "custom") {
+        custom_scene(settings);
     } else {
         throw std::invalid_argument("Invalid drawing option");
     }
-
-    std::cout << rendered_image.size() << std::endl;
     
     rendering_progress.store(100);
-
 }
 
 int main() {
@@ -512,14 +597,59 @@ int main() {
                     }
                 </style>
                 <script>
+                    window.onload = function() {
+                        document.getElementById('drawingOptions').addEventListener('change', function() {
+                            var customSettings = document.getElementById('customSettings');
+                            if (this.value === 'custom') {
+                                customSettings.style.display = 'block';
+                            } else {
+                                customSettings.style.display = 'none';
+                            }
+                        });
+                    }
+        
+        
                     function renderScene() {
                         const selectedOption = document.getElementById("drawingOptions").value;
+        
+                        let sceneData = { prompt: selectedOption };
+        
+                        if (selectedOption === 'custom') {
+                            sceneData.customSettings = {
+                                aspectRatio: parseFloat(document.getElementById('aspectRatio').value),
+                                imageWidth: parseInt(document.getElementById('imageWidth').value),
+                                samplesPerPixel: parseInt(document.getElementById('samplesPerPixel').value),
+                                maxDepth: parseInt(document.getElementById('maxDepth').value),
+                                backgroundColor: document.getElementById('backgroundColor').value,
+                                vfov: parseFloat(document.getElementById('vfov').value),
+                                lookfrom: [
+                                    parseFloat(document.getElementById('lookfromX').value),
+                                    parseFloat(document.getElementById('lookfromY').value),
+                                    parseFloat(document.getElementById('lookfromZ').value)
+                                ],
+                                lookat: [
+                                    parseFloat(document.getElementById('lookatX').value),
+                                    parseFloat(document.getElementById('lookatY').value),
+                                    parseFloat(document.getElementById('lookatZ').value)
+                                ],
+                                vup: [
+                                    parseFloat(document.getElementById('vupX').value),
+                                    parseFloat(document.getElementById('vupY').value),
+                                    parseFloat(document.getElementById('vupZ').value)
+                                ],
+                                defocusAngle: parseFloat(document.getElementById('defocusAngle').value),
+                                focusDist: parseFloat(document.getElementById('focusDist').value),
+                                numSpheres: parseInt(document.getElementById('numSpheres').value),
+                                numQuads: parseInt(document.getElementById('numQuads').value)
+                            };
+                        }
+                            
                         fetch("/render", {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json"
                             },
-                            body: JSON.stringify({ prompt: selectedOption })
+                            body: JSON.stringify(sceneData)
                         })
                         .then(response => {
                             if (response.ok) {
@@ -554,7 +684,63 @@ int main() {
                             <option value="quads">Quads</option>
                             <option value="simple_light">Simple Light</option>
                             <option value="cornell_box">Cornell Box</option>
+                            <option value="custom">Custom Scenario</option>
                         </select>
+                    </div>
+                    <div id="customSettings" class="custom-settings" style="display: none;">
+                        <h2>Custom Scenario Settings</h2>
+                        <div class="settings-grid">
+                            <label for="aspectRatio">Aspect Ratio:</label>
+                            <input type="number" id="aspectRatio" value="1.0" step="0.1">
+                            
+                            <label for="imageWidth">Image Width:</label>
+                            <input type="number" id="imageWidth" value="100">
+                            
+                            <label for="samplesPerPixel">Samples Per Pixel:</label>
+                            <input type="number" id="samplesPerPixel" value="10">
+                            
+                            <label for="maxDepth">Max Depth:</label>
+                            <input type="number" id="maxDepth" value="10">
+                            
+                            <label for="backgroundColor">Background Color:</label>
+                            <input type="color" id="backgroundColor" value="#000000">
+                            
+                            <label for="vfov">Vertical FOV:</label>
+                            <input type="number" id="vfov" value="90">
+                            
+                            <label for="lookfromX">Look From (X, Y, Z):</label>
+                            <div class="vector-input">
+                                <input type="number" id="lookfromX" value="0">
+                                <input type="number" id="lookfromY" value="0">
+                                <input type="number" id="lookfromZ" value="0">
+                            </div>
+                            
+                            <label for="lookatX">Look At (X, Y, Z):</label>
+                            <div class="vector-input">
+                                <input type="number" id="lookatX" value="0">
+                                <input type="number" id="lookatY" value="0">
+                                <input type="number" id="lookatZ" value="-1">
+                            </div>
+                            
+                            <label for="vupX">View Up (X, Y, Z):</label>
+                            <div class="vector-input">
+                                <input type="number" id="vupX" value="0">
+                                <input type="number" id="vupY" value="1">
+                                <input type="number" id="vupZ" value="0">
+                            </div>
+                            
+                            <label for="defocusAngle">Defocus Angle:</label>
+                            <input type="number" id="defocusAngle" value="0">
+                            
+                            <label for="focusDist">Focus Distance:</label>
+                            <input type="number" id="focusDist" value="10">
+                            
+                            <label for="numSpheres">Number of Spheres:</label>
+                            <input type="number" id="numSpheres" value="0" min="0">
+                            
+                            <label for="numQuads">Number of Quadrilaterals:</label>
+                            <input type="number" id="numQuads" value="0" min="0">
+                        </div>
                     </div>
                     <button onclick=renderScene() class="render-btn">Render Scene</button>
                 </div>
@@ -577,27 +763,59 @@ int main() {
 
     CROW_ROUTE(app, "/image").methods("GET"_method)
     ([](){
-//        std::lock_guard<std::mutex> lock(image_mutex);
-//        crow::response res;
-//        res.set_header("Content-Type", "image/png");
-//        res.body = std::string(reinterpret_cast<const char*>(rendered_image.data()), rendered_image.size());
-//        return res;
-//        std::cout << "Current working directory: " << std::filesystem::current_path() << std::endl;
-//        
+
         crow::response res;
         res.set_static_file_info("user_image.jpg");
         res.set_header("Content-Type", "image/jpeg");
         return res;
     });
 
-
+    
     CROW_ROUTE(app, "/render").methods("POST"_method)
     ([](const crow::request& req){
         auto x = crow::json::load(req.body);
         if (!x) return crow::response(400);
+        
+        std::cout << x;
 
         std::string prompt = x["prompt"].s();
-        std::thread(render_scene, prompt).detach();
+
+        CustomSettings settings;
+        settings.prompt = prompt;
+
+        // If custom settings are provided, parse them
+        if (x.has("customSettings")) {
+            auto& custom = x["customSettings"];
+            if (custom.has("aspectRatio")) settings.aspectRatio = custom["aspectRatio"].d();
+            if (custom.has("imageWidth")) settings.imageWidth = custom["imageWidth"].i();
+            if (custom.has("samplesPerPixel")) settings.samplesPerPixel = custom["samplesPerPixel"].i();
+            if (custom.has("maxDepth")) settings.maxDepth = custom["maxDepth"].i();
+            if (custom.has("backgroundColor")) {
+                auto& bg = custom["backgroundColor"];
+                auto bgRGB = hexToRGB(bg.s());
+                settings.backgroundColor = std::array<double, 3>{static_cast<double>(bgRGB.r), static_cast<double>(bgRGB.g), static_cast<double>(bgRGB.b)};
+            }
+            if (custom.has("vfov")) settings.vfov = custom["vfov"].d();
+            if (custom.has("lookfrom")) {
+                auto& lf = custom["lookfrom"];
+                settings.lookfrom = std::array<double, 3>{lf[0].d(), lf[1].d(), lf[2].d()};
+            }
+            if (custom.has("lookat")) {
+                auto& la = custom["lookat"];
+                settings.lookat = std::array<double, 3>{la[0].d(), la[1].d(), la[2].d()};
+            }
+            if (custom.has("vup")) {
+                auto& vup = custom["vup"];
+                settings.vup = std::array<double, 3>{vup[0].d(), vup[1].d(), vup[2].d()};
+            }
+            if (custom.has("defocusAngle")) settings.defocusAngle = custom["defocusAngle"].d();
+            if (custom.has("focusDist")) settings.focusDist = custom["focusDist"].d();
+            if (custom.has("numSpheres")) settings.numSpheres = custom["numSpheres"].i();
+            if (custom.has("numQuads")) settings.numQuads = custom["numQuads"].i();
+        }
+
+        // Start the rendering in a separate thread
+        std::thread(render_scene, settings).detach();
 
         return crow::response(200, "Rendering initiated");
     });
