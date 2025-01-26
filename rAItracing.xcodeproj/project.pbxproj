@@ -255,7 +255,15 @@
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				"HEADER_SEARCH_PATHS[arch=*]" = /opt/homebrew/Cellar/asio/1.30.2/include;
+				"HEADER_SEARCH_PATHS[arch=*]" = (
+					/opt/homebrew/Cellar/asio/1.30.2/include,
+					"/opt/homebrew/Cellar/openssl@3/3.4.0/include",
+				);
+				LIBRARY_SEARCH_PATHS = "/opt/homebrew/Cellar/openssl@3/3.4.0/lib";
+				OTHER_LDFLAGS = (
+					"-lssl",
+					"-lcrypto",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
@@ -267,7 +275,15 @@
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				"HEADER_SEARCH_PATHS[arch=*]" = /opt/homebrew/Cellar/asio/1.30.2/include;
+				"HEADER_SEARCH_PATHS[arch=*]" = (
+					/opt/homebrew/Cellar/asio/1.30.2/include,
+					"/opt/homebrew/Cellar/openssl@3/3.4.0/include",
+				);
+				LIBRARY_SEARCH_PATHS = "/opt/homebrew/Cellar/openssl@3/3.4.0/lib";
+				OTHER_LDFLAGS = (
+					"-lssl",
+					"-lcrypto",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 6.0;
 			};

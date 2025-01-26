@@ -7,6 +7,14 @@
 
 #include <fstream>
 
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#include "httplib.h"
+
+
+#include <string>
+#include <regex>
+#include <cstdlib>
+
 #include "constants.h"
 
 #include "bvh.h"
@@ -35,6 +43,7 @@ struct CustomSettings {
     std::optional<double> focusDist;
     std::optional<int> numSpheres;
     std::optional<int> numQuads;
+    std::optional<std::string> response;
 };
 
 struct RGB {
@@ -393,6 +402,47 @@ void custom_scene(const CustomSettings& settings) {
     
 }
 
+std::string clean_code(const std::string& raw_code) {
+    std::string cleaned = raw_code;
+    cleaned = std::regex_replace(cleaned, std::regex("/u003c"), "<");
+    cleaned = std::regex_replace(cleaned, std::regex("/u003e"), ">");
+    
+    size_t pos = 0;
+    while ((pos = cleaned.find("```cpp", pos)) != std::string::npos) {
+        cleaned.erase(pos, 6); // Erase 3 characters at position 'pos'
+    }
+    pos = 0;
+    while ((pos = cleaned.find(">>", pos)) != std::string::npos) {
+        cleaned.replace(pos, 2, "> >"); // Replace ">>" with "> >"
+        pos += 3;  // Move past the newly inserted "> >"
+    }
+    cleaned = std::regex_replace(cleaned, std::regex("```"), "");
+    return cleaned;
+}
+
+void save_and_run_code(const std::string& code) {
+    // Save to temporary file
+    std::string temp_file = "temp_code.cpp";
+    std::ofstream out(temp_file);
+    out << code;
+    out.close();
+    
+    // Compile
+    std::string compile_cmd = "g++ -std=c++11 -o temp_program " + temp_file;
+    int compile_result = system(compile_cmd.c_str());
+    if (compile_result != 0) {
+        std::cerr << "Compilation failed" << std::endl;
+        return;
+    }
+    
+    // Execute
+    system("./temp_program");
+    
+    // Clean up
+    remove(temp_file.c_str());
+    remove("temp_program");
+}
+
 void render_scene(const CustomSettings& settings) {
     if (settings.prompt == "bouncing_spheres") {
         bouncing_spheres();
@@ -410,6 +460,9 @@ void render_scene(const CustomSettings& settings) {
         cornell_box();
     } else if (settings.prompt == "custom") {
         custom_scene(settings);
+    } else if (settings.prompt == "custom_ai") {
+        std::string cleaned_code = clean_code(settings.response.value());
+        save_and_run_code(cleaned_code);
     } else {
         throw std::invalid_argument("Invalid drawing option");
     }
@@ -596,81 +649,6 @@ int main() {
                         display: block;
                     }
                 </style>
-                <script>
-                    window.onload = function() {
-                        document.getElementById('drawingOptions').addEventListener('change', function() {
-                            var customSettings = document.getElementById('customSettings');
-                            if (this.value === 'custom') {
-                                customSettings.style.display = 'block';
-                            } else {
-                                customSettings.style.display = 'none';
-                            }
-                        });
-                    }
-        
-        
-                    function renderScene() {
-                        const selectedOption = document.getElementById("drawingOptions").value;
-        
-                        let sceneData = { prompt: selectedOption };
-        
-                        if (selectedOption === 'custom') {
-                            sceneData.customSettings = {
-                                aspectRatio: parseFloat(document.getElementById('aspectRatio').value),
-                                imageWidth: parseInt(document.getElementById('imageWidth').value),
-                                samplesPerPixel: parseInt(document.getElementById('samplesPerPixel').value),
-                                maxDepth: parseInt(document.getElementById('maxDepth').value),
-                                backgroundColor: document.getElementById('backgroundColor').value,
-                                vfov: parseFloat(document.getElementById('vfov').value),
-                                lookfrom: [
-                                    parseFloat(document.getElementById('lookfromX').value),
-                                    parseFloat(document.getElementById('lookfromY').value),
-                                    parseFloat(document.getElementById('lookfromZ').value)
-                                ],
-                                lookat: [
-                                    parseFloat(document.getElementById('lookatX').value),
-                                    parseFloat(document.getElementById('lookatY').value),
-                                    parseFloat(document.getElementById('lookatZ').value)
-                                ],
-                                vup: [
-                                    parseFloat(document.getElementById('vupX').value),
-                                    parseFloat(document.getElementById('vupY').value),
-                                    parseFloat(document.getElementById('vupZ').value)
-                                ],
-                                defocusAngle: parseFloat(document.getElementById('defocusAngle').value),
-                                focusDist: parseFloat(document.getElementById('focusDist').value),
-                                numSpheres: parseInt(document.getElementById('numSpheres').value),
-                                numQuads: parseInt(document.getElementById('numQuads').value)
-                            };
-                        }
-                            
-                        fetch("/render", {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json"
-                            },
-                            body: JSON.stringify(sceneData)
-                        })
-                        .then(response => {
-                            if (response.ok) {
-                                const interval = setInterval(() => {
-                                    fetch("/progress")
-                                    .then(response => response.json())
-                                    .then(data => {
-                                        document.getElementById("progressBar").value = data.progress;
-                                        document.getElementById("progressText").textContent = `${Math.round(data.progress)}%`;
-                                        if (data.progress >= 100) {
-                                            clearInterval(interval);
-                                            document.getElementById("renderedImage").src = "/image?" + new Date().getTime();
-                                        }
-                                    });
-                                }, 1000);
-                            } else {
-                                alert("Error initiating rendering");
-                            }
-                        });
-                    }
-                </script>
             </head>
             <body class="column">
                 <h1>Ray Tracing Renderer</h1>
@@ -685,6 +663,7 @@ int main() {
                             <option value="simple_light">Simple Light</option>
                             <option value="cornell_box">Cornell Box</option>
                             <option value="custom">Custom Scenario</option>
+                            <option value="custom_ai">Custom AI Prompt Scenario</option>
                         </select>
                     </div>
                     <div id="customSettings" class="custom-settings" style="display: none;">
@@ -742,6 +721,9 @@ int main() {
                             <input type="number" id="numQuads" value="0" min="0">
                         </div>
                     </div>
+                    <div id="customSettingsAI" class="custom-settings-ai" style="display: none;">
+                        <textarea id="aiInput" ></textarea>
+                    </div>
                     <button onclick=renderScene() class="render-btn">Render Scene</button>
                 </div>
                 <div class="progress-container">
@@ -751,6 +733,117 @@ int main() {
                 <div class="image-container">
                     <img id="renderedImage" src="" alt="Rendered Image" />
                 </div>
+                <script>
+                    window.onload = function() {
+                        document.getElementById('drawingOptions').addEventListener('change', function() {
+                            var customSettings = document.getElementById('customSettings');
+                            var customSettingsAI = document.getElementById('customSettingsAI');
+                            if (this.value === 'custom_ai') {
+                                customSettingsAI.style.display = 'block';
+                            } else {
+                                customSettingsAI.style.display = 'none';
+                            }
+                            if (this.value === 'custom') {
+                                customSettings.style.display = 'block';
+                            } else {
+                                customSettings.style.display = 'none';
+                            }
+                        });
+                    }
+        
+        
+                    function renderScene() {
+                        const selectedOption = document.getElementById("drawingOptions").value;
+        
+                        let sceneData = { prompt: selectedOption };
+        
+                        if (selectedOption === 'custom') {
+                            sceneData.customSettings = {
+                                aspectRatio: parseFloat(document.getElementById('aspectRatio').value),
+                                imageWidth: parseInt(document.getElementById('imageWidth').value),
+                                samplesPerPixel: parseInt(document.getElementById('samplesPerPixel').value),
+                                maxDepth: parseInt(document.getElementById('maxDepth').value),
+                                backgroundColor: document.getElementById('backgroundColor').value,
+                                vfov: parseFloat(document.getElementById('vfov').value),
+                                lookfrom: [
+                                    parseFloat(document.getElementById('lookfromX').value),
+                                    parseFloat(document.getElementById('lookfromY').value),
+                                    parseFloat(document.getElementById('lookfromZ').value)
+                                ],
+                                lookat: [
+                                    parseFloat(document.getElementById('lookatX').value),
+                                    parseFloat(document.getElementById('lookatY').value),
+                                    parseFloat(document.getElementById('lookatZ').value)
+                                ],
+                                vup: [
+                                    parseFloat(document.getElementById('vupX').value),
+                                    parseFloat(document.getElementById('vupY').value),
+                                    parseFloat(document.getElementById('vupZ').value)
+                                ],
+                                defocusAngle: parseFloat(document.getElementById('defocusAngle').value),
+                                focusDist: parseFloat(document.getElementById('focusDist').value),
+                                numSpheres: parseInt(document.getElementById('numSpheres').value),
+                                numQuads: parseInt(document.getElementById('numQuads').value)
+                            };
+                        }
+                        if (selectedOption === 'custom_ai') { // Render AI image
+                            const aiInputText = document.getElementById('aiInput').value;
+                            sceneData = { prompt: aiInputText };
+                            fetch("/renderAI", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json"
+                                },
+                                body: JSON.stringify(sceneData)
+                            })
+                            .then(response => {
+                                if (response.ok) {
+                                    const interval = setInterval(() => {
+                                        fetch("/progress")
+                                        .then(response => response.json())
+                                        .then(data => {
+                                            document.getElementById("progressBar").value = data.progress;
+                                            document.getElementById("progressText").textContent = `${Math.round(data.progress)}%`;
+                                            if (data.progress >= 100) {
+                                                clearInterval(interval);
+                                                document.getElementById("renderedImage").src = "/image?" + new Date().getTime();
+                                            }
+                                        });
+                                    }, 1000);
+                                } else {
+                                    alert("Error initiating rendering");
+                                }
+                            });
+                        }
+                        else { // Render custom or tutorial image
+                            fetch("/render", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json"
+                                },
+                                body: JSON.stringify(sceneData)
+                            })
+                            .then(response => {
+                                if (response.ok) {
+                                    const interval = setInterval(() => {
+                                        fetch("/progress")
+                                        .then(response => response.json())
+                                        .then(data => {
+                                            document.getElementById("progressBar").value = data.progress;
+                                            document.getElementById("progressText").textContent = `${Math.round(data.progress)}%`;
+                                            if (data.progress >= 100) {
+                                                clearInterval(interval);
+                                                document.getElementById("renderedImage").src = "/image?" + new Date().getTime();
+                                            }
+                                        });
+                                    }, 1000);
+                                } else {
+                                    alert("Error initiating rendering");
+                                }
+                            });
+                        }
+                    }
+                </script>
             </body>
             </html>
         )";
@@ -769,7 +862,87 @@ int main() {
         res.set_header("Content-Type", "image/jpeg");
         return res;
     });
-
+    
+    CROW_ROUTE(app, "/renderAI").methods("POST"_method)
+    ([](const crow::request& req){
+        auto x = crow::json::load(req.body);
+        if (!x) return crow::response(400);
+        
+        std::string prompt = x["prompt"].s();
+        
+        CustomSettings settings;
+        settings.prompt = "custom_ai";
+        try
+        {
+            httplib::Client cli("https://generativelanguage.googleapis.com");
+            
+            std::string json_payload = R"({
+              "contents": [
+                {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "text": "Generate C++ code to create a ray traced image based on my raytracing library.\n\nExamples:\nCheckered Spheres:\nhittable_list world;\n\n    auto checker = make_shared<checker_texture>(0.32, color(.2, .3, .1), color(.9, .9, .9));\n\n    world.add(make_shared<sphere>(point3(0,-10, 0), 10, make_shared<lambertian>(checker)));\n    world.add(make_shared<sphere>(point3(0, 10, 0), 10, make_shared<lambertian>(checker)));\n\n    camera cam;\n\n    cam.aspect_ratio      = 16.0 / 9.0;\n    cam.image_width       = 400;\n    cam.samples_per_pixel = 100;\n    cam.max_depth         = 50;\n    cam.background        = color(0.70, 0.80, 1.00);\n\n    cam.vfov     = 20;\n    cam.lookfrom = point3(13,2,3);\n    cam.lookat   = point3(0,0,0);\n    cam.vup      = vec3(0,1,0);\n\n    cam.defocus_angle = 0;\n\n    cam.render(world, [](int progress) {\n        rendering_progress.store(progress);\n    });\n\nBouncing Spheres:\nvoid bouncing_spheres() {\n    hittable_list world;\n    \n    auto checker = make_shared<checker_texture>(0.32, color(.2, .3, .1), color(.9, .9, .9));\n    world.add(make_shared<sphere>(point3(0,-1000,0), 1000, make_shared<lambertian>(checker)));\n    \n    auto ground_material = make_shared<lambertian>(color(0.5, 0.5, 0.5));\n\n    for (int a = -11; a < 11; a++) {\n        for (int b = -11; b < 11; b++) {\n            auto choose_mat = random_double();\n            point3 center(a + 0.9*random_double(), 0.2, b + 0.9*random_double());\n\n            if ((center - point3(4, 0.2, 0)).length() > 0.9) {\n                shared_ptr<material> sphere_material;\n\n                if (choose_mat < 0.8) {\n                    // diffuse\n                    auto albedo = color::random() * color::random();\n                    sphere_material = make_shared<lambertian>(albedo);\n                    auto center2 = center + vec3(0, random_double(0,.5), 0);\n                    world.add(make_shared<sphere>(center, center2, 0.2, sphere_material));\n                } else if (choose_mat < 0.95) {\n                    // metal\n                    auto albedo = color::random(0.5, 1);\n                    auto fuzz = random_double(0, 0.5);\n                    sphere_material = make_shared<metal>(albedo, fuzz);\n                    world.add(make_shared<sphere>(center, 0.2, sphere_material));\n                } else {\n                    // glass\n                    sphere_material = make_shared<dielectric>(1.5);\n                    world.add(make_shared<sphere>(center, 0.2, sphere_material));\n                }\n            }\n        }\n    }\n\n    auto material1 = make_shared<dielectric>(1.5);\n    world.add(make_shared<sphere>(point3(0, 1, 0), 1.0, material1));\n\n    auto material2 = make_shared<lambertian>(color(0.4, 0.2, 0.1));\n    world.add(make_shared<sphere>(point3(-4, 1, 0), 1.0, material2));\n\n    auto material3 = make_shared<metal>(color(0.7, 0.6, 0.5), 0.0);\n    world.add(make_shared<sphere>(point3(4, 1, 0), 1.0, material3));\n    \n    world.add(make_shared<sphere>(point3(0,-1000,0), 1000, ground_material));\n\n\n\n    camera cam;\n\n    cam.aspect_ratio      = 16.0 / 9.0;\n    cam.image_width       = 400;\n    cam.samples_per_pixel = 20;\n    cam.max_depth         = 20;\n    cam.background        = color(0.70, 0.80, 1.00);\n\n    cam.vfov     = 20;\n    cam.lookfrom = point3(13,2,3);\n    cam.lookat   = point3(0,0,0);\n    cam.vup      = vec3(0,1,0);\n\n    cam.defocus_angle = 0.6;\n    cam.focus_dist    = 10.0;\n\n    cam.render(world, [](int progress) {\n        rendering_progress.store(progress);\n    });\n\n}\n\nQuadrilaterals:\nvoid quads() {\n    hittable_list world;\n\n    // Materials\n    auto left_red     = make_shared<lambertian>(color(1.0, 0.2, 0.2));\n    auto back_green   = make_shared<lambertian>(color(0.2, 1.0, 0.2));\n    auto right_blue   = make_shared<lambertian>(color(0.2, 0.2, 1.0));\n    auto upper_orange = make_shared<lambertian>(color(1.0, 0.5, 0.0));\n    auto lower_teal   = make_shared<lambertian>(color(0.2, 0.8, 0.8));\n\n    // Quads\n    world.add(make_shared<quad>(point3(-3,-2, 5), vec3(0, 0,-4), vec3(0, 4, 0), left_red));\n    world.add(make_shared<quad>(point3(-2,-2, 0), vec3(4, 0, 0), vec3(0, 4, 0), back_green));\n    world.add(make_shared<quad>(point3( 3,-2, 1), vec3(0, 0, 4), vec3(0, 4, 0), right_blue));\n    world.add(make_shared<quad>(point3(-2, 3, 1), vec3(4, 0, 0), vec3(0, 0, 4), upper_orange));\n    world.add(make_shared<quad>(point3(-2,-3, 5), vec3(4, 0, 0), vec3(0, 0,-4), lower_teal));\n\n    camera cam;\n\n    cam.aspect_ratio      = 1.0;\n    cam.image_width       = 400;\n    cam.samples_per_pixel = 100;\n    cam.max_depth         = 50;\n    cam.background        = color(0.70, 0.80, 1.00);\n\n    cam.vfov     = 80;\n    cam.lookfrom = point3(0,0,9);\n    cam.lookat   = point3(0,0,0);\n    cam.vup      = vec3(0,1,0);\n\n    cam.defocus_angle = 0;\n\n    cam.render(world, [](int progress) {\n        rendering_progress.store(progress);\n    });\n    \n    // Store the rendered image\n    std::lock_guard<std::mutex> lock(image_mutex);\n    rendered_image = cam.image_buffer;\n}\n\nCornell Box:\nvoid cornell_box() {\n    hittable_list world;\n\n    auto red   = make_shared<lambertian>(color(.65, .05, .05));\n    auto white = make_shared<lambertian>(color(.73, .73, .73));\n    auto green = make_shared<lambertian>(color(.12, .45, .15));\n    auto light = make_shared<diffuse_light>(color(15, 15, 15));\n\n    world.add(make_shared<quad>(point3(555,0,0), vec3(0,555,0), vec3(0,0,555), green));\n    world.add(make_shared<quad>(point3(0,0,0), vec3(0,555,0), vec3(0,0,555), red));\n    world.add(make_shared<quad>(point3(343, 554, 332), vec3(-130,0,0), vec3(0,0,-105), light));\n    world.add(make_shared<quad>(point3(0,0,0), vec3(555,0,0), vec3(0,0,555), white));\n    world.add(make_shared<quad>(point3(555,555,555), vec3(-555,0,0), vec3(0,0,-555), white));\n    world.add(make_shared<quad>(point3(0,0,555), vec3(555,0,0), vec3(0,555,0), white));\n\n    camera cam;\n\n    cam.aspect_ratio      = 1.0;\n    cam.image_width       = 600;\n    cam.samples_per_pixel = 200;\n    cam.max_depth         = 50;\n    cam.background        = color(0,0,0);\n\n    cam.vfov     = 40;\n    cam.lookfrom = point3(278, 278, -800);\n    cam.lookat   = point3(278, 278, 0);\n    cam.vup      = vec3(0,1,0);\n\n    cam.defocus_angle = 0;\n\n    cam.render(world, [](int progress) {\n        rendering_progress.store(progress);\n    });\n    \n    // Store the rendered image\n    std::lock_guard<std::mutex> lock(image_mutex);\n    rendered_image = cam.image_buffer;\n}\n\nSimple Light:\nvoid simple_light() {\n    hittable_list world;\n\n    auto pertext = make_shared<noise_texture>(4);\n    world.add(make_shared<sphere>(point3(0,-1000,0), 1000, make_shared<lambertian>(pertext)));\n    world.add(make_shared<sphere>(point3(0,2,0), 2, make_shared<lambertian>(pertext)));\n\n    auto difflight = make_shared<diffuse_light>(color(4,4,4));\n    world.add(make_shared<sphere>(point3(0,7,0), 2, difflight));\n    world.add(make_shared<quad>(point3(3,1,-2), vec3(2,0,0), vec3(0,2,0), difflight));\n\n    camera cam;\n\n    cam.aspect_ratio      = 16.0 / 9.0;\n    cam.image_width       = 400;\n    cam.samples_per_pixel = 100;\n    cam.max_depth         = 50;\n    cam.background        = color(0,0,0);\n\n    cam.vfov     = 20;\n    cam.lookfrom = point3(26,3,6);\n    cam.lookat   = point3(0,2,0);\n    cam.vup      = vec3(0,1,0);\n\n    cam.defocus_angle = 0;\n\n    cam.render(world, [](int progress) {\n        rendering_progress.store(progress);\n    });\n    \n    // Store the rendered image\n    std::lock_guard<std::mutex> lock(image_mutex);\n    rendered_image = cam.image_buffer;\n}\n\nGenerate C++ code to produce an image according to the user input. \nFor the generation, include the whole file with all necessary includes, but omit all explanations and elaborations, we just want the cpp file. Assume all raytracing classes are ALREADY IMPLEMENTED and in the same directory. bvh.h,camera.h, constants.h, hittable.h,hittable_list.h, material.h, quad.h, sphere.h, texture.h. CONSTANTS.H BEFORE THE OTHERS SO NOTHING BREAKS. Just use them to draw. To avoid compile errors, also make sure you construct progress and image like std::atomic<int> rendering_progress(0); std::vector<unsigned char> rendered_image; Nothing else."
+                    }
+                  ]
+                },
+                {
+                  "role": "model",
+                  "parts": [
+                    {
+                      "text": "```cpp\nvoid glass_spheres() {\n    hittable_list world;\n\n    auto ground_material = make_shared<lambertian>(color(0.2, 0.2, 0.2));\n    world.add(make_shared<sphere>(point3(0,-1000,0), 1000, ground_material));\n\n    auto glass1 = make_shared<dielectric>(1.5);\n    world.add(make_shared<sphere>(point3(0, 1, 0), 1.0, glass1));\n    \n    auto glass2 = make_shared<dielectric>(1.5);\n    world.add(make_shared<sphere>(point3(-2, 1, 1), 1.0, glass2));\n\n    auto glass3 = make_shared<dielectric>(1.5);\n    world.add(make_shared<sphere>(point3(2, 1, -1), 1.0, glass3));\n\n    auto light = make_shared<diffuse_light>(color(1,1,1) * 0.5);\n    world.add(make_shared<sphere>(point3(0,5,0), 2, light));\n\n\n    camera cam;\n\n    cam.aspect_ratio      = 16.0 / 9.0;\n    cam.image_width       = 400;\n    cam.samples_per_pixel = 100;\n    cam.max_depth         = 50;\n    cam.background        = color(0.0,0.0,0.0);\n\n    cam.vfov     = 20;\n    cam.lookfrom = point3(10,3,5);\n    cam.lookat   = point3(0,0,0);\n    cam.vup      = vec3(0,1,0);\n\n    cam.defocus_angle = 0.0;\n\n    cam.render(world, [](int progress) {\n        rendering_progress.store(progress);\n    });\n    \n    std::lock_guard<std::mutex> lock(image_mutex);\n    rendered_image = cam.image_buffer;\n}\n```\n"
+                    }
+                  ]
+                },
+                {
+                  "role": "user",
+                  "parts": [
+                    {
+                      "text": ")" + prompt + R"("}
+                  ]
+                }
+              ],
+              "generationConfig": {
+                "temperature": 1,
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 8192,
+                "responseMimeType": "text/plain"
+              }
+            })";
+            
+            httplib::Headers headers = {
+                {"Content-Type", "application/json"}
+            };
+            
+            std::string path = "/v1beta/models/gemini-2.0-flash-exp:generateContent?key=AIzaSyAXI9unqZAdtHDF10FzvRdwS1e8mMFl8LE";
+            
+            auto res = cli.Post(path.c_str(), headers, json_payload, "application/json");
+            
+            if (res) {
+                // Request successful
+                std::cout << "Status: " << res->status << std::endl;
+                std::cout << "Body: " << res->body << std::endl;
+                
+                crow::json::rvalue response_body = crow::json::load(res->body);
+                settings.response = response_body["candidates"][0]["content"]["parts"][0]["text"].s();
+                // Start the rendering in a separate thread
+                std::thread(render_scene, settings).detach();
+                return crow::response(200, "Rendering initiated");
+            } else {
+                // Error occurred
+                std::cout << "Error: " << httplib::to_string(res.error()) << std::endl;
+            }
+            
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "Request failed, error: " << e.what() << '\n';
+        }
+        return crow::response(500, "server error");
+        
+    });
+     
     
     CROW_ROUTE(app, "/render").methods("POST"_method)
     ([](const crow::request& req){
